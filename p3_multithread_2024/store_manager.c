@@ -29,12 +29,6 @@ struct element{
   int units
 }
 
-struct element{
-  int product_id;
-  char operation[20];
-  int units
-}
-
 //Initialize mutex and condition variables
 pthread_cond_t non_full; /* can we add more elements? */
 pthread_cond_t non_empty; /* can we remove elements? */
