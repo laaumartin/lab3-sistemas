@@ -3,7 +3,6 @@
 #ifndef HEADER_FILE
 #define HEADER_FILE
 
-
 struct element {
   int product_id; //Product identifier
   int op;         //Operation

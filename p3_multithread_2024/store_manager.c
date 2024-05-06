@@ -23,12 +23,6 @@ typedef struct arguments{
 	int first, last;
 }arguments;
 
-struct element{
-  int product_id;
-  char operation[20];
-  int units
-}
-
 //Initialize mutex and condition variables
 pthread_cond_t non_full; /* can we add more elements? */
 pthread_cond_t non_empty; /* can we remove elements? */
@@ -45,7 +39,7 @@ void *producers(void *args){
 		if (pthread_mutex_lock(&mutex)!=0){
 			print ('there has been an error executing the mutex unlock')
 			exit(2)
-		while (queue_full(buff){// the buffer is full so the producer has to wait until the condition of not being full.
+		while queue_full(buff){// the buffer is full so the producer has to wait until the condition of not being full.
 				pthread_cond_wait(&non_full,&mutex)
 				if (pthread_cond_wait!=0)
 					print('there has been an error with the condition thread')
@@ -59,10 +53,9 @@ void *producers(void *args){
 		
 			print('there has been an error trying to save data on the buffer')
 		}
-		
-		
 				
-		
+		}
+	}
 }
 
 void *consumers(void *args){
@@ -74,7 +67,8 @@ void *consumers(void *args){
 			if (pthread_mutex_lock(&mutex)!=0){
 				print('there has been an error with mutex lock')
 				exit(1)
-		
+			}
+		}
 }
 
 
@@ -121,7 +115,6 @@ int main (int argc, const char * argv[])
 		perror("Error reading number of processes");
 		return -1;
 	} 
-	
 	
 	
 	data =(struct element*) malloc(num*sizeof(struct element)); // Rerserve memory for array of structure
