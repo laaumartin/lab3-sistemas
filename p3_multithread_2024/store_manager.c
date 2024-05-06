@@ -13,7 +13,7 @@
 #include <sys/wait.h>
 
 
-// Global variables needed on producers and consumers, so we don't have to pass them as arguments
+//Global variables needed on producers and consumers
 struct element *data; 
 queue *buff;
 int num; // Number of operations (first line of the input file)
@@ -23,22 +23,68 @@ typedef struct arguments{
 	int first, last;
 }arguments;
 
+struct element{
+  int product_id;
+  char operation[20];
+  int units
+}
 
+//Initialize mutex and condition variables
 pthread_cond_t non_full; /* can we add more elements? */
 pthread_cond_t non_empty; /* can we remove elements? */
 pthread_mutex_t mutex;
 
-void *producers(void *args){}
+void *producers(void *args){
+	arguments *sizep= (arguments *)args
+	for (k=0, k<sizep->end, i++){
+		pthread_mutex_lock(&mutex) // access to buffer 
+		if (pthread_mutex_lock(&mutex)!=0){ 
+			printf('ups there has been an error on the execution of the mutex thread')
+				exit(1)
+		}
+		if (pthread_mutex_lock(&mutex)!=0){
+			print ('there has been an error executing the mutex unlock')
+			exit(2)
+		while (queue_full(buff){// the buffer is full so the producer has to wait until the condition of not being full.
+				pthread_cond_wait(&non_full,&mutex)
+				if (pthread_cond_wait!=0)
+					print('there has been an error with the condition thread')
+					exit(3)
+		}
+		if (pthread_cond_signal(&non_empty)!=0){ //signal for indicating that the buffer is not empty fails 
+			print('There has been an error when producing the signal for non empty')
+			exit(4)
+		}
+		if (queue_put(buff, &data[k])<0){ // trying to save data[k] on the buffer
+		
+			print('there has been an error trying to save data on the buffer')
+		}
+		
+		
+				
+		
+}
 
-void *consumers(void *args){}
+void *consumers(void *args){
+		arguments *sizec= (arguments *)args
+		int val
+		struct element *elementsc
+		for(i=0, i<sizec->end,i++){
+			pthread_mutex_lock(&mutex)//access to buffer
+			if (pthread_mutex_lock(&mutex)!=0){
+				print('there has been an error with mutex lock')
+				exit(1)
+		
+}
 
 
 int main (int argc, const char * argv[])
 {
-  int profits = 0;
-  int product_stock [5] = {0};
+	int profits = 0;
+	int product_stock [5] = {0};
 
-  // Reading Input arguments
+
+  	// Reading Input arguments
 	if (argc !=5){ // check correct number of inputs
 		perror("./store manager <file name><num producers><num consumers><buff size>");
 		return -1;
@@ -63,7 +109,7 @@ int main (int argc, const char * argv[])
 		return -1;
 	}
 	
-// ***************** Loading data from input file into memory ****************
+	// ***************** Loading data from input file into memory ****************
 	// Reading the input file
 	FILE *fidin = NULL;
 	
@@ -95,8 +141,6 @@ int main (int argc, const char * argv[])
 		}
 	}
 	fclose(fidin);
-
-
 
 
 
