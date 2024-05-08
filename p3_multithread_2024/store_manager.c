@@ -18,6 +18,8 @@
 struct element *data; 
 queue *buffer;
 int num; // Number of operations (first line of the input file)
+int profits;
+int *product_stock;
 
 typedef struct arguments{
 	//fileInfo *arr;
@@ -31,8 +33,8 @@ pthread_mutex_t mutex;
 
 
 void producers(void *args){
-	arguments *ourargs = (arguments *)args; // Casting the void pointer to arguments pointer
-	for(int i=ourargs->first; i < ourargs->last ; i++ ) {
+	arguments *argsProducer = (arguments *)args; // Casting the void pointer to arguments pointer
+	for(int i=argsProducer->first; i < argsProducer->last ; i++ ) {
 		pthread_mutex_lock(&mutex); /* access to buffer*/
 		if (pthread_mutex_lock(&mutex) != 0) { 
             perror("There has been an error executing the mutex lock");
@@ -62,68 +64,107 @@ void producers(void *args){
 	pthread_exit(0);
 }
 
-void *consumers(void *args) {
-    arguments *conArgs = (arguments *)args;
-    struct element *elem;
-    int profit = 0;
-    int product_stock[5] = {0}; // Inicializar el stock de productos
-
-    // (a) Obtener concurrentemente los elementos insertados en la cola
-    for (int i = conArgs->first; i < conArgs->last; i++) {
-        if (pthread_mutex_lock(&mutex) != 0) { // Acceso al buffer
-            perror("Error en la ejecución de pthread_mutex_lock()");
+void consumers() {
+	struct element *Actelem;
+	do{
+		pthread_mutex_lock(&mutex); // access to buffer
+		if (pthread_mutex_lock(&mutex) != 0) { 
+            perror("There has been an error executing the mutex lock");
             exit(1);
         }
-        while (queue_empty(buffer)) { // Cuando el buffer está vacío, esperar a que se llene
-            if (pthread_cond_wait(&non_empty, &mutex) != 0) {
-                perror("Error en la ejecución de pthread_cond_wait()");
-                exit(4);
+		while (queue_empty(buffer)){ //buffer is empty
+			pthread_cond_wait(&non_empty, &mutex); 
+			if (pthread_cond_wait(&non_empty, &mutex) != 0) { 
+                perror("Waiting on the condition variable has failed");
+                exit(2);
             }
-        }
+		}
+		//Now we compute profit and stock
+		int price;
+		Actelem = queue_get(buffer);
+		if(Actelem==NULL){
+			perror("there has been an error trying to get data from the buffer");
+			exit(3);
+		}
+		//let's compute the purchase cost or the sale price of the element obtained from buffer
+		switch (Actelem->product_id)
+		{
+		case 1:
+			if(Actelem->op ==0){ //purchase cost for product 1
+				price=2;
+			}
+			else if(Actelem->op ==1){ //sale price for product 1
+				price=3;
+			}
+			break;
+		case 2:
+			if(Actelem->op ==0){ //purchase cost for product 2
+				price=5;
+			}
+			else if(Actelem->op ==1){ //sale price for product 2
+				price=10;
+			}
+			break;
+		case 3:
+			if(Actelem->op ==0){ //purchase cost for product 3
+				price=15;
+			}
+			else if(Actelem->op ==1){ //sale price for product 3
+				price=20;
+			}
+			break;
+		case 4:
+			if(Actelem->op ==0){ //purchase cost for product 4
+				price=25;
+			}
+			else if(Actelem->op ==1){ //sale price for product 4
+				price=40;
+			}
+			break;
+		case 5:
+			if(Actelem->op ==0){ //purchase cost for product 5
+				price=100;
+			}
+			else if(Actelem->op ==1){ //sale price for product 5
+				price=125;
+			}
+			break;
+		default: //case where product_id is not valid
+			perror("Invalid product_id");
+			break;
+		}
+		//Now we compute the profits and product_stock after the operation
+		if(Actelem->op==0){ //Case where operation is PURCHASE
+			product_stock[Actelem->product_id - 1] += Actelem->units;
+			profits -= price*Actelem->units;
+		}
+		else if(Actelem->op==1){ //Case where operation is SALE
+			if(product_stock[Actelem->product_id - 1] < Actelem->units){
+				//sale is not performed as there are NOT enough stock
+				printf("The product stock is less than the requested quantity.")
+			}
+			else{
+				//sale is performed as there are enough stock
+				product_stock[Actelem->product_id - 1] -= Actelem->units;
+				profits += price*Actelem->units;
+			}
+		}
+		else{ //If operation is neither PURCHASE nor SALE
+			perror("Invalid operation");
+		}
+		pthread_cond_signal(&non_full); //producing signal non_full
+		if (pthread_cond_signal(&non_full)!=0){ 
+			perror("There has been an error when producing the signal for non full");
+			exit(4);
+		}
+		pthread_mutex_unlock(&mutex); //unlocking mutex
+		if (pthread_mutex_unlock(&mutex)!=0){ 
+			printf("There has been an error executing the mutex unlock\n");
+			exit(5);
+		}
 
-        elem = queue_get(buffer); // Extraer el elemento de la cola
-
-        if (elem == NULL) {
-            perror("Error extrayendo el elemento de la cola");
-        }
-
-        // (b) Procesar la transacción (compra/venta) y calcular el beneficio
-        if (elem->op == 1) { // Compra
-            product_stock[elem->product_id - 1] += elem->units; // Incrementar el stock
-            profit -= elem->units; // Disminuir el beneficio
-        } else { // Venta
-            // Verificar si hay suficientes productos para vender
-            if (product_stock[elem->product_id - 1] >= elem->units) {
-                product_stock[elem->product_id - 1] -= elem->units; // Disminuir el stock
-                profit += elem->units; // Incrementar el beneficio
-            } else {
-                // No hay suficientes productos para vender, descartar la transacción
-                printf("Advertencia: Stock insuficiente para la transacción: %d %d %d\n",
-                       elem->product_id, elem->op, elem->units);
-            }
-        }
-
-        if (pthread_cond_signal(&non_full) != 0) { // El buffer no está lleno
-            perror("Error en la ejecución de pthread_cond_signal()");
-            exit(3);
-        }
-
-        if (pthread_mutex_unlock(&mutex) != 0) {
-            perror("Error en la ejecución de pthread_mutex_unlock()");
-            exit(2);
-        }
-    } // Fin del bucle for
-
-    // (c) Devolver el beneficio calculado y el stock parcial al proceso principal
-    int *result = malloc(sizeof(int) * 6); // Asignar memoria para el beneficio y el array de stock
-    result[0] = profit; // Almacenar el beneficio en el primer índice
-    // Almacenar el stock de productos en los índices restantes
-    for (int i = 0; i < 5; i++) {
-        result[i + 1] = product_stock[i];
-    }
-    
-    pthread_exit(result);
-    return NULL;
+	}while(queue_empty(buffer)==0) //the process will be repeated until the buffer is empty and producers has not more operations to add
+	pthread_exit(0);
 }
 
 
