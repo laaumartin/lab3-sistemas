@@ -32,7 +32,7 @@ pthread_cond_t non_empty; /* can we remove elements? */
 pthread_mutex_t mutex;
 
 
-void producers(void *args){
+void *producers(void *args){
 	arguments *argsProducer = (arguments *)args; // Casting the void pointer to arguments pointer
 	for(int i=argsProducer->first; i < argsProducer->last ; i++ ) {
 		pthread_mutex_lock(&mutex); /* access to buffer*/
@@ -64,7 +64,7 @@ void producers(void *args){
 	pthread_exit(0);
 }
 
-void consumers() {
+void *consumers() {
 	struct element *Actelem;
 	do{
 		pthread_mutex_lock(&mutex); // access to buffer
@@ -141,7 +141,7 @@ void consumers() {
 		else if(Actelem->op==1){ //Case where operation is SALE
 			if(product_stock[Actelem->product_id - 1] < Actelem->units){
 				//sale is not performed as there are NOT enough stock
-				printf("The product stock is less than the requested quantity.")
+				printf("The product stock is less than the requested quantity.");
 			}
 			else{
 				//sale is performed as there are enough stock
@@ -163,7 +163,7 @@ void consumers() {
 			exit(5);
 		}
 
-	}while(queue_empty(buffer)==0) //the process will be repeated until the buffer is empty and producers has not more operations to add
+	}while(queue_empty(buffer)==0); //the process will be repeated until the buffer is empty and producers has not more operations to add
 	pthread_exit(0);
 }
 
@@ -227,10 +227,21 @@ int main (int argc, const char * argv[])
 			return -1;
 		}
 
-		for (int i =0; i<num; i++){ // Store the data of the file int the array
-			if(fscanf(fidin, "%d %d %d", &data[i].product_id, &data[i].op, &data[i].units) ==3);
-			else{
+		for(int i=0;i<num;i++){
+			
+			char operation[20];
+
+			if(fscanf(fidin, "%d %s %d", &data[i].product_id, operation, &data[i].units) != 3) {
 				perror("Error reading the file");
+				return 1;
+			}
+		
+			if (strcmp(operation, "PURCHASE") == 0) {
+				data[i].op = 0; 
+			} else if (strcmp(operation, "SALE") == 0) {
+				data[i].op = 1; 
+			} else {
+				perror("Invalid operation");
 				return 1;
 			}
 		}
@@ -256,16 +267,18 @@ int main (int argc, const char * argv[])
 				argsProducer[i].first = ceil(i * num / prods);
 				argsProducer[i].last = num;
 			}
-			pthread_create(&thrProducer[i], NULL, (void *)producers, &argsProducer[i]);
+			pthread_create(&thrProducer[i], NULL, producers, &argsProducer[i]);
 		}
 		for (int i=0;i<cons;i++) {
-			pthread_create(&thrConsumer[i], NULL, &consumers, NULL);
+			pthread_create(&thrConsumer[i], NULL, consumers, NULL);
 		}
 
 		//Running the consumers and producers
 		for (int i=0;i<prods;i++) {
 			pthread_join(thrProducer[i],NULL);
 		}
+
+
 		for (int i=0;i<cons;i++) {
 			pthread_join(thrConsumer[i],NULL);
 		}
