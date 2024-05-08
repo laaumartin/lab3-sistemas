@@ -11,10 +11,12 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <math.h>
 
 
 //Global variables needed on producers and consumers
 struct element *data; 
+queue *buffer;
 int num; // Number of operations (first line of the input file)
 
 typedef struct arguments{
@@ -28,37 +30,43 @@ pthread_cond_t non_empty; /* can we remove elements? */
 pthread_mutex_t mutex;
 
 
-void producer(void *args){
-	arguments *args = (arguments *)args; // Casting the void pointer to arguments pointer
-	for(i=args->first; i < args->last ; i++ ) {
+void producers(void *args){
+	arguments *ourargs = (arguments *)args; // Casting the void pointer to arguments pointer
+	for(int i=ourargs->first; i < ourargs->last ; i++ ) {
 		pthread_mutex_lock(&mutex); /* access to buffer*/
 		if (pthread_mutex_lock(&mutex) != 0) { 
-            printf("There has been an error executing the mutex lock\n");
+            perror("There has been an error executing the mutex lock");
             exit(1);
         }
 		while (queue_full(buffer)){ /* when buffer is full*/
 			pthread_cond_wait(&non_full, &mutex); 
-			if (pthread_cond_wait != 0) { 
-                printf("Waiting on the condition variable has failed\n");
+			if (pthread_cond_wait(&non_full, &mutex) != 0) { 
+                perror("Waiting on the condition variable has failed");
                 exit(2);
             }
 		}
-		if (queue_put(buffer,data[i])<0){ // trying to save data[i] on the buffer
-			print('there has been an error trying to save data on the buffer')
+		if (queue_put(buffer, &data[i])<0){ // trying to save data[i] on the buffer
+			perror("there has been an error trying to save data on the buffer");
 		}
 		pthread_cond_signal(&non_empty); /* buffer is not empty */
 		if (pthread_cond_signal(&non_empty)!=0){ 
-			print('There has been an error when producing the signal for non empty')
-			exit(3)
+			perror("There has been an error when producing the signal for non empty");
+			exit(3);
 		}
 		pthread_mutex_unlock(&mutex);
 		if (pthread_mutex_unlock(&mutex)!=0){ 
-			printf("There has been an error executing the mutex unlock\n")
-			exit(4)
+			printf("There has been an error executing the mutex unlock\n");
+			exit(4);
 		}
 	}
 	pthread_exit(0);
 }
+
+void *consumers(void *args) {
+    
+}
+
+
 
 int main (int argc, const char * argv[])
 {
@@ -129,7 +137,7 @@ int main (int argc, const char * argv[])
 
 		//Creating the circular buffer
 		queue* buffer = queue_init(bsize);
-		if(myQueue == NULL) { // Checking if queue initialization was successful
+		if(buffer == NULL) { // Checking if queue initialization was successful
 			printf("Queue initialization failed\n");
 			return 1;
 		}
@@ -138,7 +146,7 @@ int main (int argc, const char * argv[])
 		pthread_t thrProducer[prods];
 		pthread_t thrConsumer[cons];
 		arguments *argsProducer = malloc(num*sizeof(arguments));
-		for (i=0;i<prods;i++) {
+		for (int i=0;i<prods;i++) {
 			//here we will asign the range of data that will be processed for each producer
 			if (i != prods - 1) {
 				argsProducer[i].first = ceil(i * num / prods);
@@ -147,17 +155,17 @@ int main (int argc, const char * argv[])
 				argsProducer[i].first = ceil(i * num / prods);
 				argsProducer[i].last = num;
 			}
-			pthread_create(&thrProducer[i], NULL, producers, &argsProducer[i]);
+			pthread_create(&thrProducer[i], NULL, (void *)producers, &argsProducer[i]);
 		}
-		for (i=0;i<cons;i++) {
-			pthread_create(&thrConsumer[i], NULL, consumers, NULL);
+		for (int i=0;i<cons;i++) {
+			pthread_create(&thrConsumer[i], NULL, &consumers, NULL);
 		}
 
 		//Running the consumers and producers
-		for (i=0;i<prods;i++) {
+		for (int i=0;i<prods;i++) {
 			pthread_join(thrProducer[i],NULL);
 		}
-		for (i=0;i<cons;i++) {
+		for (int i=0;i<cons;i++) {
 			pthread_join(thrConsumer[i],NULL);
 		}
 
