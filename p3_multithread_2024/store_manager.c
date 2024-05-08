@@ -15,7 +15,6 @@
 
 //Global variables needed on producers and consumers
 struct element *data; 
-queue *buff;
 int num; // Number of operations (first line of the input file)
 
 typedef struct arguments{
@@ -28,49 +27,38 @@ pthread_cond_t non_full; /* can we add more elements? */
 pthread_cond_t non_empty; /* can we remove elements? */
 pthread_mutex_t mutex;
 
-void *producers(void *args){
-	arguments *sizep= (arguments *)args
-	for (k=0, k<sizep->end, i++){
-		pthread_mutex_lock(&mutex) // access to buffer 
-		if (pthread_mutex_lock(&mutex)!=0){ 
-			printf('ups there has been an error on the execution of the mutex thread')
-				exit(1)
+
+void producer(void *args){
+	arguments *args = (arguments *)args; // Casting the void pointer to arguments pointer
+	for(i=args->first; i < args->last ; i++ ) {
+		pthread_mutex_lock(&mutex); /* access to buffer*/
+		if (pthread_mutex_lock(&mutex) != 0) { 
+            printf("There has been an error executing the mutex lock\n");
+            exit(1);
+        }
+		while (queue_full(buffer)){ /* when buffer is full*/
+			pthread_cond_wait(&non_full, &mutex); 
+			if (pthread_cond_wait != 0) { 
+                printf("Waiting on the condition variable has failed\n");
+                exit(2);
+            }
 		}
-		if (pthread_mutex_lock(&mutex)!=0){
-			print ('there has been an error executing the mutex unlock')
-			exit(2)
-		while queue_full(buff){// the buffer is full so the producer has to wait until the condition of not being full.
-				pthread_cond_wait(&non_full,&mutex)
-				if (pthread_cond_wait!=0)
-					print('there has been an error with the condition thread')
-					exit(3)
-		}
-		if (pthread_cond_signal(&non_empty)!=0){ //signal for indicating that the buffer is not empty fails 
-			print('There has been an error when producing the signal for non empty')
-			exit(4)
-		}
-		if (queue_put(buff, &data[k])<0){ // trying to save data[k] on the buffer
-		
+		if (queue_put(buffer,data[i])<0){ // trying to save data[i] on the buffer
 			print('there has been an error trying to save data on the buffer')
 		}
-				
+		pthread_cond_signal(&non_empty); /* buffer is not empty */
+		if (pthread_cond_signal(&non_empty)!=0){ 
+			print('There has been an error when producing the signal for non empty')
+			exit(3)
+		}
+		pthread_mutex_unlock(&mutex);
+		if (pthread_mutex_unlock(&mutex)!=0){ 
+			printf("There has been an error executing the mutex unlock\n")
+			exit(4)
 		}
 	}
+	pthread_exit(0);
 }
-
-void *consumers(void *args){
-		arguments *sizec= (arguments *)args
-		int val
-		struct element *elementsc
-		for(i=0, i<sizec->end,i++){
-			pthread_mutex_lock(&mutex)//access to buffer
-			if (pthread_mutex_lock(&mutex)!=0){
-				print('there has been an error with mutex lock')
-				exit(1)
-			}
-		}
-}
-
 
 int main (int argc, const char * argv[])
 {
@@ -139,22 +127,38 @@ int main (int argc, const char * argv[])
 		}
 		fclose(fidin);
 
+		//Creating the circular buffer
+		queue* buffer = queue_init(bsize);
+		if(myQueue == NULL) { // Checking if queue initialization was successful
+			printf("Queue initialization failed\n");
+			return 1;
+		}
+
 		//Creating the consumers and producers
-		pthread_t thr[prods];
-		pthread_t ths[cons];
+		pthread_t thrProducer[prods];
+		pthread_t thrConsumer[cons];
+		arguments *argsProducer = malloc(num*sizeof(arguments));
 		for (i=0;i<prods;i++) {
-			pthread_create(&thr[i], NULL, producers, NULL);
+			//here we will asign the range of data that will be processed for each producer
+			if (i != prods - 1) {
+				argsProducer[i].first = ceil(i * num / prods);
+				argsProducer[i].last = ceil((i + 1) * num / prods);
+			} else {
+				argsProducer[i].first = ceil(i * num / prods);
+				argsProducer[i].last = num;
+			}
+			pthread_create(&thrProducer[i], NULL, producers, &argsProducer[i]);
 		}
 		for (i=0;i<cons;i++) {
-			pthread_create(&ths[i], NULL, consumers, NULL);
+			pthread_create(&thrConsumer[i], NULL, consumers, NULL);
 		}
 
 		//Running the consumers and producers
 		for (i=0;i<prods;i++) {
-			pthread_join(thr[i],NULL);
+			pthread_join(thrProducer[i],NULL);
 		}
 		for (i=0;i<cons;i++) {
-			pthread_join(ths[i],NULL);
+			pthread_join(thrConsumer[i],NULL);
 		}
 
 
