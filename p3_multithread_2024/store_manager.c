@@ -63,7 +63,67 @@ void producers(void *args){
 }
 
 void *consumers(void *args) {
+    arguments *conArgs = (arguments *)args;
+    struct element *elem;
+    int profit = 0;
+    int product_stock[5] = {0}; // Inicializar el stock de productos
+
+    // (a) Obtener concurrentemente los elementos insertados en la cola
+    for (int i = conArgs->first; i < conArgs->last; i++) {
+        if (pthread_mutex_lock(&mutex) != 0) { // Acceso al buffer
+            perror("Error en la ejecución de pthread_mutex_lock()");
+            exit(1);
+        }
+        while (queue_empty(buffer)) { // Cuando el buffer está vacío, esperar a que se llene
+            if (pthread_cond_wait(&non_empty, &mutex) != 0) {
+                perror("Error en la ejecución de pthread_cond_wait()");
+                exit(4);
+            }
+        }
+
+        elem = queue_get(buffer); // Extraer el elemento de la cola
+
+        if (elem == NULL) {
+            perror("Error extrayendo el elemento de la cola");
+        }
+
+        // (b) Procesar la transacción (compra/venta) y calcular el beneficio
+        if (elem->op == 1) { // Compra
+            product_stock[elem->product_id - 1] += elem->units; // Incrementar el stock
+            profit -= elem->units; // Disminuir el beneficio
+        } else { // Venta
+            // Verificar si hay suficientes productos para vender
+            if (product_stock[elem->product_id - 1] >= elem->units) {
+                product_stock[elem->product_id - 1] -= elem->units; // Disminuir el stock
+                profit += elem->units; // Incrementar el beneficio
+            } else {
+                // No hay suficientes productos para vender, descartar la transacción
+                printf("Advertencia: Stock insuficiente para la transacción: %d %d %d\n",
+                       elem->product_id, elem->op, elem->units);
+            }
+        }
+
+        if (pthread_cond_signal(&non_full) != 0) { // El buffer no está lleno
+            perror("Error en la ejecución de pthread_cond_signal()");
+            exit(3);
+        }
+
+        if (pthread_mutex_unlock(&mutex) != 0) {
+            perror("Error en la ejecución de pthread_mutex_unlock()");
+            exit(2);
+        }
+    } // Fin del bucle for
+
+    // (c) Devolver el beneficio calculado y el stock parcial al proceso principal
+    int *result = malloc(sizeof(int) * 6); // Asignar memoria para el beneficio y el array de stock
+    result[0] = profit; // Almacenar el beneficio en el primer índice
+    // Almacenar el stock de productos en los índices restantes
+    for (int i = 0; i < 5; i++) {
+        result[i + 1] = product_stock[i];
+    }
     
+    pthread_exit(result);
+    return NULL;
 }
 
 
@@ -170,15 +230,18 @@ int main (int argc, const char * argv[])
 		}
 
 
+		//Output
+		printf("Total: %d euros\n", profits);
+		printf("Stock:\n");
+		printf("  Product 1: %d\n", product_stock[0]);
+		printf("  Product 2: %d\n", product_stock[1]);
+		printf("  Product 3: %d\n", product_stock[2]);
+		printf("  Product 4: %d\n", product_stock[3]);
+		printf("  Product 5: %d\n", product_stock[4]);
 
-	// Output
-	printf("Total: %d euros\n", profits);
-	printf("Stock:\n");
-	printf("  Product 1: %d\n", product_stock[0]);
-	printf("  Product 2: %d\n", product_stock[1]);
-	printf("  Product 3: %d\n", product_stock[2]);
-	printf("  Product 4: %d\n", product_stock[3]);
-	printf("  Product 5: %d\n", product_stock[4]);
+		//Free the reserved memory
+		free(data);
+		free(argsProducer);
 
 	return 0;
 	}
