@@ -20,6 +20,7 @@ queue *buffer;
 int num; // Number of operations (first line of the input file)
 int profits;
 int *product_stock;
+int producWorking=1;
 
 typedef struct arguments{
 	//fileInfo *arr;
@@ -64,9 +65,9 @@ void *producers(void *args){
 	pthread_exit(0);
 }
 
-void *consumers() {
-	struct element *Actelem;
-	do{
+void *consumers(void *args) {
+	arguments *argsConsumer = (arguments *)args;
+	for(int i=0; i < argsConsumer->last ; i++ ){
 		pthread_mutex_lock(&mutex); // access to buffer
 		if (pthread_mutex_lock(&mutex) != 0) { 
             perror("There has been an error executing the mutex lock");
@@ -81,6 +82,7 @@ void *consumers() {
 		}
 		//Now we compute profit and stock
 		int price;
+		struct element* Actelem ;
 		Actelem = queue_get(buffer);
 		if(Actelem==NULL){
 			perror("there has been an error trying to get data from the buffer");
@@ -163,7 +165,7 @@ void *consumers() {
 			exit(5);
 		}
 
-	}while(queue_empty(buffer)==0); //the process will be repeated until the buffer is empty and producers has not more operations to add
+	}
 	pthread_exit(0);
 }
 
@@ -258,6 +260,7 @@ int main (int argc, const char * argv[])
 		pthread_t thrProducer[prods];
 		pthread_t thrConsumer[cons];
 		arguments *argsProducer = malloc(num*sizeof(arguments));
+		arguments *argsConsumer = malloc(num*sizeof(arguments));
 		for (int i=0;i<prods;i++) {
 			//here we will asign the range of data that will be processed for each producer
 			if (i != prods - 1) {
@@ -270,19 +273,32 @@ int main (int argc, const char * argv[])
 			pthread_create(&thrProducer[i], NULL, producers, &argsProducer[i]);
 		}
 		for (int i=0;i<cons;i++) {
-			pthread_create(&thrConsumer[i], NULL, consumers, NULL);
+			if (i!= cons-1){
+				argsConsumer[i].first =0;
+				argsConsumer[i].last  = ceil(num/cons);
+			} else{
+				argsConsumer[i].first = 0;
+				argsConsumer[i].last  = ceil(num/cons) + num % cons;
+			}
+			pthread_create(&thrConsumer[i], NULL, consumers, &argsConsumer[i]);
 		}
 
-		//Running the consumers and producers
+		//Waiting the consumers and producers to finish execution
 		for (int i=0;i<prods;i++) {
 			pthread_join(thrProducer[i],NULL);
 		}
-
-
+		producWorking=0;
+		pthread_cond_broadcast(&non_empty);
 		for (int i=0;i<cons;i++) {
 			pthread_join(thrConsumer[i],NULL);
 		}
 
+		//Free the reserved memory
+		free(data);
+		free(argsProducer);
+		pthread_mutex_destroy(&mutex);
+		pthread_cond_destroy(&non_full);
+		pthread_cond_destroy(&non_empty);
 
 		//Output
 		printf("Total: %d euros\n", profits);
@@ -293,9 +309,7 @@ int main (int argc, const char * argv[])
 		printf("  Product 4: %d\n", product_stock[3]);
 		printf("  Product 5: %d\n", product_stock[4]);
 
-		//Free the reserved memory
-		free(data);
-		free(argsProducer);
+		
 
 	return 0;
 	}
