@@ -18,19 +18,21 @@
 struct element *data; 
 queue *buffer;
 int num; // Number of operations (first line of the input file)
-int profits;
-int *product_stock;
-int producWorking=1;
 
 typedef struct arguments{
 	//fileInfo *arr;
 	int first, last;
 }arguments;
 
+struct result{
+	int partial_profit;
+	int product_stock[5];
+};
+
 //Initialize mutex and condition variables
-pthread_cond_t non_full; /* can we add more elements? */
-pthread_cond_t non_empty; /* can we remove elements? */
-pthread_mutex_t mutex;
+pthread_cond_t non_full ; /* can we add more elements? */
+pthread_cond_t non_empty ; /* can we remove elements? */
+pthread_mutex_t mutex ;
 
 
 void *producers(void *args){
@@ -67,6 +69,9 @@ void *producers(void *args){
 
 void *consumers(void *args) {
 	arguments *argsConsumer = (arguments *)args;
+	struct result *result = malloc(sizeof(struct result));
+	result->partial_profit = 0;
+	memcpy(result->product_stock, (int[5]){0},sizeof(result->product_stock));
 	for(int i=0; i < argsConsumer->last ; i++ ){
 		
 		if (pthread_mutex_lock(&mutex) != 0) { // access to buffer
@@ -137,18 +142,18 @@ void *consumers(void *args) {
 		}
 		//Now we compute the profits and product_stock after the operation
 		if(Actelem->op==0){ //Case where operation is PURCHASE
-			product_stock[Actelem->product_id - 1] += Actelem->units;
-			profits -= price*Actelem->units;
+			result->product_stock[Actelem->product_id - 1] += Actelem->units;
+			result->partial_profit -= price*Actelem->units;
 		}
 		else if(Actelem->op==1){ //Case where operation is SALE
-			if(product_stock[Actelem->product_id - 1] < Actelem->units){
+			if(result->product_stock[Actelem->product_id - 1] < Actelem->units){
 				//sale is not performed as there are NOT enough stock
 				printf("The product stock is less than the requested quantity.");
 			}
 			else{
 				//sale is performed as there are enough stock
-				product_stock[Actelem->product_id - 1] -= Actelem->units;
-				profits += price*Actelem->units;
+				result->product_stock[Actelem->product_id - 1] -= Actelem->units;
+				result->partial_profit += price*Actelem->units;
 			}
 		}
 		else{ //If operation is neither PURCHASE nor SALE
@@ -164,11 +169,10 @@ void *consumers(void *args) {
 			printf("There has been an error executing the mutex unlock\n");
 			exit(5);
 		}
-
+		
 	}
-	pthread_exit(0);
+	pthread_exit(result);
 }
-
 
 
 int main (int argc, const char * argv[])
@@ -206,7 +210,6 @@ int main (int argc, const char * argv[])
 			return -1;
 		}
 		
-		
 		// Reading the input file
 		FILE *file = NULL;
 		
@@ -219,7 +222,6 @@ int main (int argc, const char * argv[])
 			perror("Error reading number of processes");
 			return -1;
 		} 
-		
 		
 		data =(struct element*) malloc(num*sizeof(struct element)); // Rerserve memory for array of structure
 
@@ -287,12 +289,17 @@ int main (int argc, const char * argv[])
 		for (int i=0;i<producer_num;i++) {
 			pthread_join(thrProducer[i],NULL);
 		}
-		producWorking=0;
-		pthread_cond_broadcast(&non_empty);
+		
+		struct result **result = (struct result **)malloc(consumer_num * sizeof(struct result));
 		for (int i=0;i<consumer_num;i++) {
-			pthread_join(thrConsumer[i],NULL);
+			pthread_join(thrConsumer[i],(void **)&result[i]);
+			profits += result[i]->partial_profit;
+			for(int j=0;j<5;j++){
+				product_stock[j] += result[i]->product_stock[j];
+			}
+			
 		}
-
+		
 		//Free the reserved memory
 		free(data);
 		free(argsProducer);
