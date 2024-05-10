@@ -26,8 +26,8 @@ typedef struct arguments{
 }arguments;
 
 typedef struct result{
-	int partial_profit;
-	int product_stock[5];
+	int partial_profit; // variable to hold the profit value
+	int product_stock[5]; // stock of the five different products
 }result;
 
 //Initialize mutex and condition variables
@@ -36,58 +36,58 @@ pthread_cond_t non_empty; /* can we remove elements? */
 pthread_mutex_t mutex;
 
 
-void *producers(void *args){
+void *producers(void *args){ // producers function
 	arguments *argsProducer = (arguments *)args; // Casting the void pointer to arguments pointer
 	for(int i=argsProducer->first; i < argsProducer->last ; i++ ) {
 		/* access to buffer*/
-		if (pthread_mutex_lock(&mutex) != 0) { 
-            perror("There has been an error executing the mutex lock");
+		if (pthread_mutex_lock(&mutex) != 0) { // lock the mutex and check if it has been locked correctly
+            perror("There has been an error executing the mutex lock");// message in case of error
             exit(1);
         }
 		while (queue_full(buffer)){ /* when buffer is full*/ 
-			if (pthread_cond_wait(&non_full, &mutex) != 0) { 
-                perror("Waiting on the condition variable has failed");
+			if (pthread_cond_wait(&non_full, &mutex) != 0) { // wait until the signal for the condition variable
+                perror("Waiting on the condition variable has failed");// in case of error message 
                 exit(2);
             }
 		}
 		if (queue_put(buffer, &data[i])<0){ // trying to save data[i] on the buffer
-			perror("there has been an error trying to save data on the buffer");
+			perror("there has been an error trying to save data on the buffer");// message in case of error
 		}
-		/* buffer is not empty */
-		if (pthread_cond_signal(&non_empty)!=0){ 
-			perror("There has been an error when producing the signal for non empty");
+		
+		if (pthread_cond_signal(&non_empty)!=0){ /* buffer is not empty */
+			perror("There has been an error when producing the signal for non empty");// message in case of error
 			exit(3);
 		}
-		if (pthread_mutex_unlock(&mutex)!=0){ 
-			printf("There has been an error executing the mutex unlock\n");
+		if (pthread_mutex_unlock(&mutex)!=0){  // unlocks the mutex and checks if it is done correctly
+			printf("There has been an error executing the mutex unlock\n"); //message in case of error
 			exit(4);
 		}
 	}
 	pthread_exit(0);
 }
 
-void *consumers() {
+void *consumers() { //consumers function
 	struct element *Actelem;
-	struct result *result = malloc(sizeof(struct result));
-	result->partial_profit = 0;
-	memcpy(result->product_stock, (int[5]){0},sizeof(result->product_stock));
-	while(queue_empty(buffer)==0 || producWorking==1){
-		 // access to buffer
-		if (pthread_mutex_lock(&mutex) != 0) { 
-            perror("There has been an error executing the mutex lock");
+	struct result *result = malloc(sizeof(struct result)); // allocating memory for the structure result
+	result->partial_profit = 0;//sets the partial profit member of the result to 0
+	memcpy(result->product_stock, (int[5]){0},sizeof(result->product_stock)); //copy the integers array into the product stock array 
+	while(queue_empty(buffer)==0 || producWorking==1){ // while the buffer is not empty or  if the producer is still working
+		
+		if (pthread_mutex_lock(&mutex) != 0) {  // access to buffer
+            perror("There has been an error executing the mutex lock");// message in case of error
             exit(1);
         }
 		while (queue_empty(buffer) && producWorking==1 ){ //buffer is empty
 			if (pthread_cond_wait(&non_empty, &mutex) != 0) { 
-                perror("Waiting on the condition variable has failed");
+                perror("Waiting on the condition variable has failed");// message in case of error
                 exit(2);
             }
 		}
 		//Now we compute profit and stock
-		if(queue_empty(buffer)==0){
-			int price;
-			Actelem = queue_get(buffer);
-			if(Actelem==NULL){
+		if(queue_empty(buffer)==0){ // the buffer is not empty 
+			int price; //initialize the price
+			Actelem = queue_get(buffer); // dequeue an element from the buffer
+			if(Actelem==NULL){ // no element is dequeue
 				perror("there has been an error trying to get data from the buffer");
 				exit(3);
 			}
@@ -158,25 +158,25 @@ void *consumers() {
 				perror("Invalid operation");
 			}
 			free(Actelem);
-			count ++;
-			if (count>=numOperations){
-				producWorking=0;
-				pthread_cond_broadcast(&non_empty);
-				pthread_mutex_unlock(&mutex);
+			count ++; // increasing the counter 
+			if (count>=numOperations){ // in case the counter is greater than the numb of operations 
+				producWorking=0; // producers stop working
+				pthread_cond_broadcast(&non_empty); // creat a conditional broadcast
+				pthread_mutex_unlock(&mutex); // unlock the mutex
 				break;
 			}
 			//producing signal non_full
 			if (pthread_cond_signal(&non_full)!=0){ 
-				perror("There has been an error when producing the signal for non full");
+				perror("There has been an error when producing the signal for non full"); //message in case of error
 				exit(4);
 			}
 			//unlocking mutex
 			if (pthread_mutex_unlock(&mutex)!=0){ 
-				printf("There has been an error executing the mutex unlock\n");
+				printf("There has been an error executing the mutex unlock\n");//message in case of error
 				exit(5);
 			}
 		} else{
-			pthread_mutex_unlock(&mutex);
+			pthread_mutex_unlock(&mutex); // unlock the mutex
 			break;
 		}
 	}
@@ -192,21 +192,21 @@ int main (int argc, const char * argv[])
 	pthread_cond_init(&non_full, NULL);
 	pthread_cond_init(&non_empty, NULL);
 
-  	int profits = 0;
-	int product_stock [5] = {0};
+  	int profits = 0; //initialize the profit
+	int product_stock [5] = {0}; //intialize the product stock
 
 		// Reading Input arguments
 		if (argc !=5){ // check correct number of inputs
-			perror("./store manager <file name><num producers><num consumers><buff size>");
+			perror("./store manager <file name><num producers><num consumers><buff size>");// message indicating how it should be 
 			return -1;
 		}
 
-		const char *fileName = argv[1];
-		int numP = atoi(argv[2]);
-		int numC = atoi(argv[3]);
-		int buffsize = atoi(argv[4]);
-			
-		if(numP<=0){
+		const char *fileName = argv[1]; // first argument is the file name
+		int numP = atoi(argv[2]);// second argument is the number of producers
+		int numC = atoi(argv[3]);// third argument is the number of consumers
+		int buffsize = atoi(argv[4]); // fourth argument is the buffer size
+		// message errors in case of any of the argumnents is an integer smaller or equal to 0
+		if(numP<=0){ 
 			perror("Invalid number of producers");
 			return -1;
 		}
@@ -225,7 +225,7 @@ int main (int argc, const char * argv[])
 		FILE *fidin = NULL;
 		
 		fidin = fopen(fileName,"r"); // Open the file
-		if (!fidin){
+		if (!fidin){ // failure when opening
 			perror("Error opening the file");
 			return 1;
 		}
@@ -237,27 +237,27 @@ int main (int argc, const char * argv[])
 		
 		data =(struct element*) malloc(numOperations*sizeof(struct element)); // Rerserve memory for array of structure
 
-		if(data==NULL){
+		if(data==NULL){ // in case of error allocating the data structure
 			perror("Error allocating data structure");
 			free(data);
 			return -1;
 		}
 
-		for(int i=0;i<numOperations;i++){
-			
+		for(int i=0;i<numOperations;i++){ // loop for the number of operations
+			 
 			char operation[20];
 
-			if(fscanf(fidin, "%d %s %d", &data[i].product_id, operation, &data[i].units) != 3) {
-				perror("Error reading the file");
+			if(fscanf(fidin, "%d %s %d", &data[i].product_id, operation, &data[i].units) != 3) { // reading the data from the file
+				perror("Error reading the file"); // in case of error
 				return 1;
 			}
 		
-			if (strcmp(operation, "PURCHASE") == 0) {
-				data[i].op = 0; 
-			} else if (strcmp(operation, "SALE") == 0) {
-				data[i].op = 1; 
+			if (strcmp(operation, "PURCHASE") == 0) {  //check if the string is the op purchase
+				data[i].op = 0; //setting the data to 0 in purchase case
+			} else if (strcmp(operation, "SALE") == 0) {//check if the string is the op sale
+				data[i].op = 1; //setting the data to 1 in sales case
 			} else {
-				perror("Invalid operation");
+				perror("Invalid operation");// error case
 				return 1;
 			}
 		}
